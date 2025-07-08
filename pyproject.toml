@@ -21,6 +21,7 @@ dependencies = [
     "torchvision>=0.22.0",
     "pydantic-settings>=2.10.1",
     "gitpython>=3.1.44",
+    "tqdm>=4.67.1",
 ]
 
 [project.optional-dependencies]
