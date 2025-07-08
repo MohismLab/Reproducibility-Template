@@ -1,0 +1,110 @@
+# ==============================================================================
+#                        Small CNN Model Configuration (S)
+# ==============================================================================
+#
+# Purpose:
+# --------
+# This YAML file defines the architecture of a "Small" CNN with approximately
+# 10 million parameters. It's suitable for more complex datasets or as a
+# stronger baseline model.
+#
+# How to Use:
+# -------------
+# Load this configuration using your project's model creation function.
+#
+#   model = create_model_from_config('configs/models/s.yaml')
+#
+# ==============================================================================
+
+# --- Model Metadata ---
+name: s_cnn
+type: CNN
+
+# --- Model Architecture Definition ---
+# Input Tensor Shape: (N, 1, 28, 28)
+layers:
+  # --- Block 1 ---
+  - type: conv
+    in_channels: 1
+    out_channels: 64
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    # Output shape: (N, 64, 28, 28)
+  - type: relu
+  - type: conv
+    in_channels: 64
+    out_channels: 64
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    # Output shape: (N, 64, 28, 28)
+  - type: relu
+  - type: maxpool
+    kernel_size: 2
+    stride: 2
+    # Output shape: (N, 64, 14, 14)
+
+  # --- Block 2 ---
+  - type: conv
+    in_channels: 64
+    out_channels: 128
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    # Output shape: (N, 128, 14, 14)
+  - type: relu
+  - type: conv
+    in_channels: 128
+    out_channels: 128
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    # Output shape: (N, 128, 14, 14)
+  - type: relu
+  - type: maxpool
+    kernel_size: 2
+    stride: 2
+    # Output shape: (N, 128, 7, 7)
+
+  # --- Block 3 ---
+  - type: conv
+    in_channels: 128
+    out_channels: 256
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    # Output shape: (N, 256, 7, 7)
+  - type: relu
+  - type: maxpool
+    kernel_size: 2
+    stride: 2
+    # Output shape: (N, 256, 3, 3) -> floor((7-2)/2 + 1) = 3
+
+  # --- Classifier Head ---
+  - type: flatten
+    # Output shape: (N, 256 * 3 * 3) = (N, 2304)
+
+  - type: linear
+    in_features: 2304 # Calculated as 256 * 3 * 3
+    out_features: 4096
+    # Params: (2304 + 1) * 4096 = 9,437,184
+
+  - type: relu
+
+  - type: linear
+    in_features: 4096
+    out_features: 1024
+    # Params: (4096 + 1) * 1024 = 4,195,328
+
+  - type: relu
+
+  - type: linear
+    in_features: 1024
+    out_features: 10  # Assumes 10 output classes.
+    # Params: (1024 + 1) * 10 = 10,250
+
+# --- Total Parameter Estimation ---
+# Conv Params: ~0.5M
+# FC Layers: 9,437,184 + 4,195,328 + 10,250 = 13,642,762
+# Grand Total: Approx. 14.2 Million parameters.

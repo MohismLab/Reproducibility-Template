@@ -1,0 +1,112 @@
+# ==============================================================================
+#                       Medium CNN Model Configuration (M)
+# ==============================================================================
+#
+# Purpose:
+# --------
+# This YAML file defines the architecture of a "Medium" CNN with approximately
+# 100 million parameters. This is a very large model, demonstrating how to
+# scale up using this configuration system. It's likely overkill for simple
+# datasets but could be adapted for large-scale image classification.
+#
+# How to Use:
+# -------------
+# Load this configuration using your project's model creation function.
+#
+#   model = create_model_from_config('configs/models/m.yaml')
+#
+# ==============================================================================
+
+# --- Model Metadata ---
+name: m_cnn
+type: CNN
+
+# --- Model Architecture Definition ---
+# Input Tensor Shape: (N, 1, 28, 28)
+layers:
+  # --- Block 1 ---
+  - type: conv
+    in_channels: 1
+    out_channels: 64
+    kernel_size: 3
+    stride: 1
+    padding: 1
+  - type: relu
+  - type: maxpool
+    kernel_size: 2
+    stride: 2
+    # Output shape: (N, 64, 14, 14)
+
+  # --- Block 2 ---
+  - type: conv
+    in_channels: 64
+    out_channels: 128
+    kernel_size: 3
+    stride: 1
+    padding: 1
+  - type: relu
+  - type: maxpool
+    kernel_size: 2
+    stride: 2
+    # Output shape: (N, 128, 7, 7)
+
+  # --- Block 3 ---
+  - type: conv
+    in_channels: 128
+    out_channels: 256
+    kernel_size: 3
+    stride: 1
+    padding: 1
+  - type: relu
+  - type: conv
+    in_channels: 256
+    out_channels: 256
+    kernel_size: 3
+    stride: 1
+    padding: 1
+  - type: relu
+
+  # --- Block 4 ---
+  - type: conv
+    in_channels: 256
+    out_channels: 512
+    kernel_size: 3
+    stride: 1
+    padding: 1
+  - type: relu
+  - type: conv
+    in_channels: 512
+    out_channels: 512
+    kernel_size: 3
+    stride: 1
+    padding: 1
+  - type: relu
+    # Output shape: (N, 512, 7, 7)
+
+  # --- Classifier Head ---
+  - type: flatten
+    # Output shape: (N, 512 * 7 * 7) = (N, 25088)
+
+  - type: linear
+    in_features: 25088 # Calculated as 512 * 7 * 7
+    out_features: 4096
+    # Params: (25088 + 1) * 4096 = 102,764,544
+
+  - type: relu
+
+  - type: linear
+    in_features: 4096
+    out_features: 4096
+    # Params: (4096 + 1) * 4096 = 16,777,216
+
+  - type: relu
+
+  - type: linear
+    in_features: 4096
+    out_features: 10 # Assumes 10 output classes.
+    # Params: (4096 + 1) * 10 = 40,970
+
+# --- Total Parameter Estimation ---
+# Conv Params: ~8.5M
+# FC Layers: 102,764,544 + 16,777,216 + 40,970 = 119,582,730
+# Grand Total: Approx. 124 Million parameters.
