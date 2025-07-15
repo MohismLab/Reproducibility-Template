@@ -210,7 +210,6 @@ def main() -> None:
                     "epoch": epoch,
                     "model_state_dict": model.state_dict(),
                     "accuracy": test_accuracy,
-                    "git_commit_hash": config.git_commit_hash,
                 },
                 save_path,
             )
