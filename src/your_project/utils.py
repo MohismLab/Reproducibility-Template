@@ -115,7 +115,7 @@ def create_experiment_snapshot() -> str:
 
         branch_name = "exp_snapshots"
         current_branch = repo.active_branch.name
-        
+
         logger.info(f"Current branch: {current_branch}")
         logger.info(f"Repository has changes: dirty={repo.is_dirty()}, untracked={len(repo.untracked_files)}")
 
@@ -208,7 +208,7 @@ def create_experiment_snapshot() -> str:
             try:
                 repo.git.checkout(current_branch)
                 logger.info(f"Switched back to original branch '{current_branch}'")
-                
+
                 # If we had stashed changes and they're still in stash, restore them
                 try:
                     stash_list = repo.git.stash("list")
@@ -217,7 +217,7 @@ def create_experiment_snapshot() -> str:
                         logger.info("Restored original changes from stash")
                 except Exception as restore_e:
                     logger.warning(f"Could not restore stashed changes: {str(restore_e)}")
-                    
+
             except Exception as e:
                 logger.error(f"Failed to switch back to original branch: {str(e)}")
 

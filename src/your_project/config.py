@@ -38,8 +38,9 @@ class EvalSettings(BaseSettings):
 # An experiment should consist of all of the above modules
 class ExperimentSettings(BaseSettings):
     """Configuration for the whole experiment"""
+
     # to ensure auto-update from .env file
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # path to model configuration .yaml file, default is an xs model
     model_config_file: Path = Field(
