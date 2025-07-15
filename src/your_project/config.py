@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-MODEL_CONFIG_DIR = Path(__file__).parent.parent.parent / "configs" / "models"
+MODEL_ARCH_DIR = Path(__file__).parent.parent.parent / "configs" / "models"
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 OUTPUT_DIR = Path(__file__).parent.parent.parent / "outputs"
 
@@ -42,10 +42,8 @@ class ExperimentSettings(BaseSettings):
     # to ensure auto-update from .env file
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    # path to model configuration .yaml file, default is an xs model
-    model_config_file: Path = Field(
-        MODEL_CONFIG_DIR / "xs.yaml", description="Configuration file of model architecture"
-    )
+    # path to model architecture .yaml file, default is an xs model
+    model_arch_file: Path = Field(MODEL_ARCH_DIR / "xs.yaml", description="Configuration file of model architecture")
     git_commit_hash: str = Field("", description="Git commit hash of the snapshot of running codes")
 
     data_dir: Path = Field(DATA_DIR / "MNIST", description="Path to the directory of training and evaluation data")
@@ -60,7 +58,7 @@ class ExperimentSettings(BaseSettings):
         # Generate a name for the experiment if not provided
         if self.wandb.name is None:
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            self.wandb.name = f"{self.model_config_file.stem}_{timestamp}"
+            self.wandb.name = f"{self.model_arch_file.stem}_{timestamp}"
 
         # Update output_dir to be a subdirectory of the base output_dir
         self.output_dir = self.output_dir / self.wandb.name

@@ -1,6 +1,6 @@
 import argparse
 import logging
-import subprocess
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Union
@@ -95,195 +95,115 @@ def parse_args_and_update_config() -> ExperimentSettings:
     return config
 
 
-def create_experiment_snapshot() -> str:
+def create_experiment_snapshot(repo_path: str = ".", snapshot_branch: str = "exp_snapshots") -> str:
     """
-    Create a snapshot of the current repository state in a separate branch.
-    Bypasses pre-commit hooks to ensure the snapshot can be created.
+    Creates a snapshot of the current Git repository state without disturbing the working directory.
 
-    Returns:
-        str: The commit hash of the snapshot
+    This function performs the following steps:
+    1.  Initializes a Repo object from the given path.
+    2.  Records the current branch or commit (if in a detached HEAD state).
+    3.  Stashes all local changes, including untracked files.
+    4.  Switches to the specified snapshot branch (creates it if it doesn't exist).
+    5.  Creates a new commit on the snapshot branch.
+    6.  Switches back to the original branch/commit.
+    7.  Applies the stashed changes back to the working directory.
+
+    A `try...finally` block ensures that the repository state is always restored,
+    even if an error occurs during the snapshot process.
+
+    Args:
+        commit_message (str): The commit message for the snapshot.
+        repo_path (str, optional): The path to the Git repository. Defaults to the current directory.
+        snapshot_branch (str, optional): The name of the branch to store snapshots. Defaults to 'exp_snapshots'.
     """
     try:
-        # Get the repository object (assuming it already exists)
-        repo_path = Path(__file__).parent.parent.parent  # code is in src/your_project/
-        repo = git.Repo(repo_path)
-
-        # Check current working directory status
-        if not repo.is_dirty() and not repo.untracked_files:
-            logger.info("No changes detected in the repository. Using current commit.")
-            return repo.head.commit.hexsha
-
-        branch_name = "exp_snapshots"
-        current_branch = repo.active_branch.name
-
-        logger.info(f"Current branch: {current_branch}")
-        logger.info(f"Repository has changes: dirty={repo.is_dirty()}, untracked={len(repo.untracked_files)}")
-
-        # Create a unique identifier for the stash
-        import uuid
-
-        stash_id = f"exp_snapshot_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}"
-        stash_created = False
-        stash_index = None
-
-        try:
-            # First, stash current changes if any
-            if repo.is_dirty() or repo.untracked_files:
-                logger.info("Stashing current changes before branch switch...")
-
-                # Get the current stash count before stashing
-                stash_before = repo.git.stash("list").count("\n") + 1
-
-                # Include untracked files in stash with unique identifier
-                repo.git.stash("push", "-u", "-m", f"Temporary stash for {stash_id}")
-
-                # Verify if stash was created successfully
-                stash_after = repo.git.stash("list").count("\n") + 1
-                stash_created = stash_after > stash_before
-
-                if stash_created:
-                    stash_index = 0  # The latest stash is always at index 0
-                    logger.info(f"Changes stashed successfully with ID: {stash_id}")
-                else:
-                    logger.warning("Failed to stash changes, continuing without stashing")
-
-            # Create a backup branch as a safety net
-            backup_branch = f"backup_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            try:
-                repo.git.branch(backup_branch)
-                logger.info(f"Created backup branch '{backup_branch}' as safety net")
-            except Exception as backup_e:
-                logger.warning(f"Could not create backup branch: {str(backup_e)}")
-
-            # Now switch to experiment snapshot branch (create if doesn't exist)
-            if branch_name not in repo.heads:
-                repo.git.checkout("-b", branch_name)
-                logger.info(f"Created new branch '{branch_name}' for experiment snapshot.")
-            else:
-                repo.git.checkout(branch_name)
-                logger.info(f"Switched to existing branch '{branch_name}' for experiment snapshot.")
-
-            # Apply the stashed changes to the snapshot branch
-            if stash_created and stash_index is not None:
-                try:
-                    # Use the index to ensure we restore the correct stash
-                    repo.git.stash("apply", f"stash@{{{stash_index}}}")
-                    logger.info("Applied stashed changes to snapshot branch")
-
-                    # Mark stash as applied, but don't delete it yet (for safety)
-                    stash_applied = True
-                except Exception as stash_e:
-                    logger.warning(f"Failed to apply stash: {str(stash_e)}")
-                    stash_applied = False
-
-                    # If stash apply fails, try to get the changes from the original branch
-                    try:
-                        repo.git.checkout(current_branch, "--", ".")
-                        logger.info("Copied changes from original branch")
-                    except Exception as copy_e:
-                        logger.error(f"Failed to copy changes: {str(copy_e)}")
-
-            # Add all files (including untracked ones)
-            repo.git.add("--all")
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            commit_message = f"Experiment snapshot at {timestamp}"
-            commit_hash = ""
-
-            try:
-                # Directly use subprocess to execute git commit command and skip hooks
-                result = subprocess.run(
-                    ["git", "commit", "-m", commit_message, "--no-verify"],
-                    cwd=repo_path,
-                    capture_output=True,
-                    text=True,
-                )
-
-                if result.returncode == 0:
-                    commit_hash = repo.head.commit.hexsha
-                    logger.info(f"Successfully committed changes with hash: {commit_hash[:8]}")
-                else:
-                    # Check if it's because there are no changes to commit
-                    if "nothing to commit" in result.stdout.lower():
-                        logger.info("No changes to commit, using current HEAD")
-                        commit_hash = repo.head.commit.hexsha
-                    else:
-                        logger.warning(f"Git commit failed: {result.stderr}")
-                        # Try fallback method
-                        try:
-                            commit = repo.index.commit(commit_message)
-                            commit_hash = commit.hexsha
-                            logger.info(f"Fallback commit successful with hash: {commit_hash[:8]}")
-                        except Exception as fallback_e:
-                            logger.error(f"Fallback commit failed: {str(fallback_e)}")
-                            return ""
-
-            except Exception as e:
-                logger.warning(f"Error during commit: {str(e)}")
-                try:
-                    commit = repo.index.commit(commit_message)
-                    commit_hash = commit.hexsha
-                    logger.info(f"Alternative commit method successful with hash: {commit_hash[:8]}")
-                except Exception as alt_e:
-                    logger.error(f"All commit methods failed: {str(alt_e)}")
-                    return ""
-
-            if commit_hash:
-                logger.info(f"Created experiment snapshot in branch '{branch_name}' with commit {commit_hash[:8]}")
-                return commit_hash
-            else:
-                logger.error("No commit hash was generated")
-                return ""
-
-        finally:
-            # Switch back to original branch
-            try:
-                repo.git.checkout(current_branch)
-                logger.info(f"Switched back to original branch '{current_branch}'")
-
-                # Restore changes from stash
-                if stash_created and stash_index is not None:
-                    try:
-                        # Use the index to ensure we restore the correct stash
-                        result = subprocess.run(
-                            ["git", "stash", "apply", f"stash@{{{stash_index}}}"],
-                            cwd=repo_path,
-                            capture_output=True,
-                            text=True,
-                        )
-
-                        if result.returncode == 0:
-                            logger.info(f"Successfully restored changes from stash@{{{stash_index}}}")
-
-                            # Now we can delete the stash
-                            try:
-                                repo.git.stash("drop", f"stash@{{{stash_index}}}")
-                                logger.info(f"Removed stash@{{{stash_index}}}")
-                            except Exception as drop_e:
-                                logger.warning(f"Could not remove stash: {str(drop_e)}")
-                        else:
-                            logger.warning(f"Failed to restore stash, changes may be in stash list: {result.stderr}")
-                            logger.info("You can manually restore with: git stash apply")
-
-                    except Exception as restore_e:
-                        logger.warning(f"Could not restore stashed changes: {str(restore_e)}")
-                        logger.info(
-                            f"Your changes may still be in the stash. Check 'git stash list' and apply manually."
-                        )
-
-                        # If stash apply fails, we can still inform the user
-                        logger.info(f"You can also check the backup branch '{backup_branch}' for your changes.")
-
-            except Exception as e:
-                logger.error(f"Failed to switch back to original branch: {str(e)}")
-                logger.info(f"Please manually switch back with: git checkout {current_branch}")
-
-                if stash_created:
-                    logger.info("Your changes may be in the stash. Check with 'git stash list'")
-
+        # 1. Initialize the Repo object. This also checks if it's a valid Git repo.
+        repo = git.Repo(repo_path, search_parent_directories=True)
+        logging.info(f"Successfully connected to repository at: {repo.working_tree_dir}")
+    except git.exc.InvalidGitRepositoryError:
+        logging.error(f"The directory '{os.path.abspath(repo_path)}' is not a valid Git repository.")
+        return
     except Exception as e:
-        logger.error(f"Failed to create experiment snapshot: {str(e)}")
-        return ""
+        logging.error(f"An unexpected error occurred while initializing the repository: {e}")
+        return
+
+    original_ref = None
+    stashed_something = False
+
+    try:
+        # --- Preparation Phase ---
+        logging.info("--- Starting Git Snapshot Process ---")
+
+        # 2. Record the current branch or commit hash (for detached HEAD)
+        if repo.head.is_detached:
+            original_ref = repo.head.commit.hexsha
+            logging.warning(
+                f"Currently in a 'detached HEAD' state at commit {original_ref[:7]}. Will return to this commit."
+            )
+        else:
+            original_ref = repo.active_branch.name
+            logging.info(f"Current branch is '{original_ref}'.")
+
+        # 3. Stash local changes if the working directory is dirty
+        if repo.is_dirty(untracked_files=True):
+            logging.info("Local changes detected. Stashing them...")
+            repo.git.stash("push", "-u", "-m", "snapshot_auto_stash")
+            stashed_something = True
+            logging.info("Local changes have been stashed.")
+        else:
+            logging.info("Workspace is clean. No need to stash.")
+
+        # 4. Switch to the snapshot branch (create if it doesn't exist)
+        if snapshot_branch in repo.heads:
+            logging.info(f"Switching to existing branch '{snapshot_branch}'...")
+            repo.heads[snapshot_branch].checkout()
+        else:
+            logging.info(f"Branch '{snapshot_branch}' not found. Creating and switching...")
+            repo.create_head(snapshot_branch).checkout()
+        logging.info(f"Successfully switched to branch '{snapshot_branch}'.")
+
+        # 5. Create the snapshot commit
+        logging.info(f"Creating snapshot commit on branch '{snapshot_branch}'...")
+        repo.git.commit(
+            "--allow-empty", "-m", f'"Snapshot commit for experiment at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}"'
+        )
+        snapshot_hash = repo.head.commit.hexsha
+        logging.info(f"Snapshot created successfully! Commit: {snapshot_hash[:8]}")
+
+    except git.exc.GitCommandError as e:
+        logging.error(f"A Git command failed during the snapshot process.")
+        logging.error(f"Command: {' '.join(e.command)}")
+        logging.error(f"Stderr: {e.stderr.strip()}")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}", exc_info=True)
+
+    finally:
+        # --- Cleanup Phase ---
+        # This block will run regardless of whether an error occurred.
+        logging.info("--- Cleaning up and restoring original state ---")
+
+        if not original_ref:
+            logging.warning("Could not determine the original branch/commit. Cleanup might be incomplete.")
+            return
+
+        # 6. Switch back to the original branch or commit
+        logging.info(f"Switching back to '{original_ref}'...")
+        repo.git.switch("--force", original_ref)
+        logging.info("Successfully switched back.")
+
+        # 7. Restore the stashed changes if something was stashed
+        if stashed_something:
+            logging.info("Restoring stashed changes...")
+            try:
+                repo.git.stash("pop")
+                logging.info("Stashed changes have been successfully restored.")
+            except git.exc.GitCommandError as e:
+                logging.error("Failed to pop stash. This may be due to a conflict.")
+                logging.error(f"Stderr: {e.stderr.strip()}")
+                logging.warning("Your changes are still saved in the stash. Please run 'git stash list' to see them.")
+                logging.warning("You may need to manually run 'git stash apply' and resolve conflicts.")
+
+        logging.info("🎉 Snapshot process complete. Your workspace is back to its original state.")
 
 
 # Custom WandbLogHandler for syncing logs to wandb
