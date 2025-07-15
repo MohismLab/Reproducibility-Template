@@ -5,6 +5,8 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 MODEL_CONFIG_DIR = Path(__file__).parent.parent.parent / "configs" / "models"
+DATA_DIR = Path(__file__).parent.parent.parent / "data"
+OUTPUT_DIR = Path(__file__).parent.parent.parent / "outputs"
 
 
 class WandbSettings(BaseSettings):
@@ -37,6 +39,10 @@ class ExperimentSettings(BaseSettings):
         MODEL_CONFIG_DIR / "xs.yaml", description="Configuration file of model architecture"
     )
     git_commit_hash: str = Field("", description="Git commit hash of the snapshot of running codes")
+
+    data_dir: str = Field(DATA_DIR / "MNIST", description="Path to the directory of training and evaluation data")
+    output_dir: str = Field(OUTPUT_DIR, description="Output directory for experiments")
+
     wandb: WandbSettings = WandbSettings()
     train: TrainSettings = TrainSettings()
     eval: EvalSettings = EvalSettings()

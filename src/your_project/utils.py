@@ -3,12 +3,24 @@ import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, Union
 
 import git
+import wandb
+from pydantic_settings import BaseSettings
 
 from .config import ExperimentSettings
 
 logger = logging.getLogger(__name__)
+training_ascii_art = """
+//  ____    ____   ______    __    __  .______              ___      .______      .___________.  //
+//  \   \  /   /  /  __  \  |  |  |  | |   _  \            /   \     |   _  \     |           |  //
+//   \   \/   /  |  |  |  | |  |  |  | |  |_)  |          /  ^  \    |  |_)  |    `---|  |----`  //
+//    \_    _/   |  |  |  | |  |  |  | |      /          /  /_\  \   |      /         |  |       //
+//      |  |     |  `--'  | |  `--'  | |  |\  \----.    /  _____  \  |  |\  \----.    |  |       //
+//      |__|      \______/   \______/  | _| `._____|   /__/     \__\ | _| `._____|    |__|       //
+//                                                                                               //
+"""
 
 
 def parse_args_and_update_config() -> ExperimentSettings:
@@ -153,3 +165,33 @@ def create_experiment_snapshot() -> str:
     except Exception as e:
         logger.error(f"Failed to create experiment snapshot: {str(e)}")
         return ""
+
+
+# Custom WandbLogHandler for syncing logs to wandb
+class WandbLogHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            # Format the log message
+            msg = self.format(record)
+            # Log to wandb
+            wandb.log({"log": msg, "level": record.levelname})
+        except Exception:
+            self.handleError(record)
+
+
+def convert_config_for_wandb(cfg: Union[BaseSettings, Dict]) -> Dict[str, Any]:
+    if hasattr(cfg, "model_dump"):
+        # Get dict representation
+        cfg_dict = cfg.model_dump()
+        # Process each value
+        for key, value in cfg_dict.items():
+            # Convert nested BaseSettings
+            if hasattr(value, "model_dump"):
+                cfg_dict[key] = convert_config_for_wandb(value)
+            # Convert Path to string
+            elif isinstance(value, Path):
+                cfg_dict[key] = str(value)
+        return cfg_dict
+    else:
+        # If it's already a primitive type
+        return cfg

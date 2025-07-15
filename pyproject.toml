@@ -21,6 +21,7 @@ dependencies = [
     "torchvision>=0.22.0",
     "pydantic-settings>=2.10.1",
     "gitpython>=3.1.44",
+    "tqdm>=4.67.1",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +37,9 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-timeout>=2.3.1",
     "pytest-xdist>=3.6.1",
+    "myst-parser>=4.0.1",
+    "sphinx-book-theme>=1.1.4",
+    "sphinx-design>=0.6.1",
 ]
 
 [project.scripts]
