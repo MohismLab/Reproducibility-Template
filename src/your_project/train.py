@@ -1,22 +1,18 @@
 import logging
+import os
 from pathlib import Path
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import wandb
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
+import wandb
+
 from .config import ExperimentSettings
 from .models import create_model_from_config
-from .utils import (
-    WandbLogHandler,
-    convert_config_for_wandb,
-    create_experiment_snapshot,
-    parse_args_and_update_config,
-    training_ascii_art,
-)
+from .utils import WandbLogHandler, convert_config_for_wandb, parse_args_and_update_config, training_ascii_art
 
 # set the logger of the whole experiment
 logger = logging.getLogger(__name__)
@@ -34,7 +30,23 @@ def setup_wandb_logging(config: ExperimentSettings) -> None:
     wandb_config = convert_config_for_wandb(config)
 
     # Initialize wandb with full config
-    wandb.init(project=config.wandb.project, name=config.wandb.name, entity=config.wandb.entity, config=wandb_config)
+    run = wandb.init(
+        project=config.wandb.project,
+        name=config.wandb.name,
+        entity=config.wandb.entity,
+        config=wandb_config,
+        save_code=False,
+    )
+    logger.info(f"WandB run initialized: {run.id}")
+
+    # Create and save a snapshot of the experiment
+    run.log_code(
+        root=str(Path(__file__).parent.parent.parent),
+        include_fn=lambda path: path.endswith((".py", ".ipynb", ".yaml")),
+        exclude_fn=lambda path, root: os.path.relpath(path, root).startswith(
+            ("data/", "outputs/", ".venv/", ".git/", "wandb/")
+        ),
+    )
 
     # Create and add wandb log handler
     wandb_handler = WandbLogHandler()
@@ -82,16 +94,12 @@ def main() -> None:
     logger.info(training_ascii_art)
     config = parse_args_and_update_config()
 
-    logger.info("Creating snapshot of the running codes to `exp_snapshot`...")
-    commit_hash = create_experiment_snapshot()
-    config.git_commit_hash = commit_hash
-    logger.info(f"Running codes are snapshoted to commit with hash `{commit_hash}`")
-
     logger.info("Setting up wandb handler for logger....")
     setup_wandb_logging(config)
+    logger.info("WandB logging initialized")
 
-    logger.info(f"Building model from {config.model_config_file}...")
-    model = create_model_from_config(config)
+    logger.info(f"Building model from {config.model_arch_file}...")
+    model = create_model_from_config(config.model_arch_file)
     logger.info(f"Built the following model:\n{model}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -193,7 +201,7 @@ def main() -> None:
         if test_accuracy > best_accuracy:
             best_accuracy = test_accuracy
             # Create filename with configuration details
-            model_name = config.model_config_file.stem
+            model_name = config.model_arch_file.stem
             save_path = save_dir / f"{model_name}_epoch{epoch}_acc{test_accuracy:.2f}.pt"
 
             # Save model

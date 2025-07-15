@@ -27,7 +27,7 @@ class TrainSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="TRAIN_")
 
     batch_size: int = Field(default=32, description="Batch size for training")
-    epochs: int = Field(default=10, description="Number of epochs for training")
+    epochs: int = Field(default=2, description="Number of epochs for training")
     learning_rate: float = Field(default=0.001, description="Learning rate for the optimizer")
 
 
@@ -48,9 +48,8 @@ class ExperimentSettings(BaseSettings):
 
     # path to model architecture .yaml file, default is an xs model
     model_arch_file: Path = Field(MODEL_ARCH_DIR / "xs.yaml", description="Configuration file of model architecture")
-    git_commit_hash: str = Field("", description="Git commit hash of the snapshot of running codes")
 
-    data_dir: Path = Field(DATA_DIR / "MNIST", description="Path to the directory of training and evaluation data")
+    data_dir: Path = Field(DATA_DIR, description="Path to the directory of training and evaluation data")
     output_dir: Path = Field(OUTPUT_DIR, description="Output directory for experiments")
     log_file: Path = Field(OUTPUT_DIR / "train.log", description="Log file name for the experiment")
 
