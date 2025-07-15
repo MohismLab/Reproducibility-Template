@@ -44,7 +44,7 @@ def setup_wandb_logging(config: ExperimentSettings) -> None:
         root=str(Path(__file__).parent.parent.parent),
         include_fn=lambda path: path.endswith((".py", ".ipynb", ".yaml")),
         exclude_fn=lambda path, root: os.path.relpath(path, root).startswith(
-            ("data/", "outputs/", ".venv/", ".git/", "wandb/")
+            (".venv/", ".git/", "data/", "docs/", "outputs/", "wandb/")
         ),
     )
 
