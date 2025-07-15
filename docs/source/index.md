@@ -29,3 +29,11 @@ train
 
 The entry is defined in the `pyproject.toml` file under the `[tool.poetry.scripts]` section.
 This command will execute the training script with the default configuration settings.
+
+### Results
+
+- Accuracy: 99.03%
+- Loss: 0.02968575582429129
+- Wandb Run URL: [link](https://wandb.ai/mc45197-university-of-macau/Reproducibility%20Demo/runs/xqxsp7gt/overview)
+- Git Commit: `37a218d562a8928beb5808f1fc824ec182537746` of branch `sguo/dev`
+- Code snapshot: [link](https://wandb.ai/mc45197-university-of-macau/Reproducibility%20Demo/artifacts/code/source-Reproducibility_Demo-.venv_bin_train/v5/files)
