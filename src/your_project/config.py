@@ -13,7 +13,7 @@ OUTPUT_DIR = Path(__file__).parent.parent.parent / "outputs"
 class WandbSettings(BaseSettings):
     """Configuration for logging on Wandb"""
 
-    model_config = {"env_prefix": "WANDB_"}  # to ensure auto-update from .env file
+    model_config = SettingsConfigDict(env_prefix="WANDB_")
 
     # Basic settings
     project: str = Field(default="your-project", description="WandB project name")
@@ -24,6 +24,8 @@ class WandbSettings(BaseSettings):
 class TrainSettings(BaseSettings):
     """Configuration for training"""
 
+    model_config = SettingsConfigDict(env_prefix="TRAIN_")
+
     batch_size: int = Field(default=32, description="Batch size for training")
     epochs: int = Field(default=10, description="Number of epochs for training")
     learning_rate: float = Field(default=0.001, description="Learning rate for the optimizer")
@@ -31,6 +33,8 @@ class TrainSettings(BaseSettings):
 
 class EvalSettings(BaseSettings):
     """Configuration for evaluation"""
+
+    model_config = SettingsConfigDict(env_prefix="EVAL_")
 
     eval_batch_size: int = Field(default=64, description="Batch size for evaluation")
 
@@ -40,7 +44,7 @@ class ExperimentSettings(BaseSettings):
     """Configuration for the whole experiment"""
 
     # to ensure auto-update from .env file
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_file_print=True)
 
     # path to model architecture .yaml file, default is an xs model
     model_arch_file: Path = Field(MODEL_ARCH_DIR / "xs.yaml", description="Configuration file of model architecture")

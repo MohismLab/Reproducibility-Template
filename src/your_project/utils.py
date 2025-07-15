@@ -33,6 +33,7 @@ def parse_args_and_update_config() -> ExperimentSettings:
     Returns:
         Updated ExperimentSettings object
     """
+
     # Create configuration object
     config = ExperimentSettings()
 

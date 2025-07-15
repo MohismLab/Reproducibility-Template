@@ -86,7 +86,6 @@ def main() -> None:
     commit_hash = create_experiment_snapshot()
     config.git_commit_hash = commit_hash
     logger.info(f"Running codes are snapshoted to commit with hash `{commit_hash}`")
-    breakpoint()
 
     logger.info("Setting up wandb handler for logger....")
     setup_wandb_logging(config)
