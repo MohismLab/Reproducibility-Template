@@ -105,7 +105,7 @@ def create_experiment_snapshot() -> str:
     """
     try:
         # Get the repository object (assuming it already exists)
-        repo_path = Path(__file__).parent.parent.parent  # Assuming code is in src/your_project/
+        repo_path = Path(__file__).parent.parent.parent  # code is in src/your_project/
         repo = git.Repo(repo_path)
 
         # Check current working directory status
@@ -119,15 +119,41 @@ def create_experiment_snapshot() -> str:
         logger.info(f"Current branch: {current_branch}")
         logger.info(f"Repository has changes: dirty={repo.is_dirty()}, untracked={len(repo.untracked_files)}")
 
+        # Create a unique identifier for the stash
+        import uuid
+
+        stash_id = f"exp_snapshot_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        stash_created = False
+        stash_index = None
+
         try:
             # First, stash current changes if any
-            stash_created = False
             if repo.is_dirty() or repo.untracked_files:
                 logger.info("Stashing current changes before branch switch...")
-                # Include untracked files in stash
-                repo.git.stash("push", "-u", "-m", "Temporary stash for experiment snapshot")
-                stash_created = True
-                logger.info("Changes stashed successfully")
+
+                # Get the current stash count before stashing
+                stash_before = repo.git.stash("list").count("\n") + 1
+
+                # Include untracked files in stash with unique identifier
+                repo.git.stash("push", "-u", "-m", f"Temporary stash for {stash_id}")
+
+                # Verify if stash was created successfully
+                stash_after = repo.git.stash("list").count("\n") + 1
+                stash_created = stash_after > stash_before
+
+                if stash_created:
+                    stash_index = 0  # The latest stash is always at index 0
+                    logger.info(f"Changes stashed successfully with ID: {stash_id}")
+                else:
+                    logger.warning("Failed to stash changes, continuing without stashing")
+
+            # Create a backup branch as a safety net
+            backup_branch = f"backup_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            try:
+                repo.git.branch(backup_branch)
+                logger.info(f"Created backup branch '{backup_branch}' as safety net")
+            except Exception as backup_e:
+                logger.warning(f"Could not create backup branch: {str(backup_e)}")
 
             # Now switch to experiment snapshot branch (create if doesn't exist)
             if branch_name not in repo.heads:
@@ -138,13 +164,19 @@ def create_experiment_snapshot() -> str:
                 logger.info(f"Switched to existing branch '{branch_name}' for experiment snapshot.")
 
             # Apply the stashed changes to the snapshot branch
-            if stash_created:
+            if stash_created and stash_index is not None:
                 try:
-                    repo.git.stash("pop")
+                    # Use the index to ensure we restore the correct stash
+                    repo.git.stash("apply", f"stash@{{{stash_index}}}")
                     logger.info("Applied stashed changes to snapshot branch")
+
+                    # Mark stash as applied, but don't delete it yet (for safety)
+                    stash_applied = True
                 except Exception as stash_e:
                     logger.warning(f"Failed to apply stash: {str(stash_e)}")
-                    # If stash pop fails, try to get the changes from the original branch
+                    stash_applied = False
+
+                    # If stash apply fails, try to get the changes from the original branch
                     try:
                         repo.git.checkout(current_branch, "--", ".")
                         logger.info("Copied changes from original branch")
@@ -209,17 +241,45 @@ def create_experiment_snapshot() -> str:
                 repo.git.checkout(current_branch)
                 logger.info(f"Switched back to original branch '{current_branch}'")
 
-                # If we had stashed changes and they're still in stash, restore them
-                try:
-                    stash_list = repo.git.stash("list")
-                    if stash_list and "Temporary stash for experiment snapshot" in stash_list:
-                        repo.git.stash("pop")
-                        logger.info("Restored original changes from stash")
-                except Exception as restore_e:
-                    logger.warning(f"Could not restore stashed changes: {str(restore_e)}")
+                # Restore changes from stash
+                if stash_created and stash_index is not None:
+                    try:
+                        # Use the index to ensure we restore the correct stash
+                        result = subprocess.run(
+                            ["git", "stash", "apply", f"stash@{{{stash_index}}}"],
+                            cwd=repo_path,
+                            capture_output=True,
+                            text=True,
+                        )
+
+                        if result.returncode == 0:
+                            logger.info(f"Successfully restored changes from stash@{{{stash_index}}}")
+
+                            # Now we can delete the stash
+                            try:
+                                repo.git.stash("drop", f"stash@{{{stash_index}}}")
+                                logger.info(f"Removed stash@{{{stash_index}}}")
+                            except Exception as drop_e:
+                                logger.warning(f"Could not remove stash: {str(drop_e)}")
+                        else:
+                            logger.warning(f"Failed to restore stash, changes may be in stash list: {result.stderr}")
+                            logger.info("You can manually restore with: git stash apply")
+
+                    except Exception as restore_e:
+                        logger.warning(f"Could not restore stashed changes: {str(restore_e)}")
+                        logger.info(
+                            f"Your changes may still be in the stash. Check 'git stash list' and apply manually."
+                        )
+
+                        # If stash apply fails, we can still inform the user
+                        logger.info(f"You can also check the backup branch '{backup_branch}' for your changes.")
 
             except Exception as e:
                 logger.error(f"Failed to switch back to original branch: {str(e)}")
+                logger.info(f"Please manually switch back with: git checkout {current_branch}")
+
+                if stash_created:
+                    logger.info("Your changes may be in the stash. Check with 'git stash list'")
 
     except Exception as e:
         logger.error(f"Failed to create experiment snapshot: {str(e)}")
