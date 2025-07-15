@@ -26,6 +26,7 @@ This project uses `uv` for fast and reliable dependency management. Install the 
 ```bash
 # This installs the project in editable mode (-e) along with dev tools
 uv sync --extra dev
+source .venv/bin/activate
 ```
 
 ### Step 3: Install Pre-commit Hooks
