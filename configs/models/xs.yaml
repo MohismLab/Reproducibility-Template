@@ -1,0 +1,130 @@
+# ==============================================================================
+#                      Extra-Small CNN Model Configuration
+# ==============================================================================
+#
+# Purpose:
+# --------
+# This YAML file defines the architecture of a Convolutional Neural Network (CNN)
+# with approximately 1 million parameters.
+#
+# How to Use:
+# -------------
+# This configuration is designed to be loaded by the `create_model_from_config`
+# function.
+#
+#   Example Python code:
+#   --------------------
+#   from your_project.models import create_model_from_config
+#
+#   model = create_model_from_config('configs/models/xs.yaml')
+#   print(model)
+#   # You can now use this 'model' object for training and inference.
+#
+#
+# File Structure:
+# ---------------
+# - name: A unique identifier for this model configuration.
+# - type: The general category of the model (e.g., CNN, RNN).
+# - layers: A list of dictionaries, where each dictionary represents one
+#           layer in the network, specified in sequential order.
+#
+# Layer Parameters:
+# -----------------
+# - type: Must match the strings in your Python script's if/elif block
+#         ('conv', 'relu', 'maxpool', 'flatten', 'linear').
+# - Other keys (e.g., in_channels, out_features) are the parameters required
+#   to initialize the corresponding torch.nn module.
+#
+# ==============================================================================
+
+# --- Model Metadata ---
+name: xs_cnn
+type: CNN
+
+# --- Model Architecture Definition ---
+# This architecture is designed for 28x28 grayscale images (like MNIST).
+# Input Tensor Shape: (N, 1, 28, 28) where N is the batch size.
+layers:
+  # --- Block 1 ---
+  # Increases channel depth and extracts initial low-level features.
+  - type: conv
+    in_channels: 1
+    out_channels: 64
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    # Output shape: (N, 64, 28, 28)
+    # Params: (1 * 3*3 + 1) * 64 = 640
+
+  - type: relu
+
+  - type: conv
+    in_channels: 64
+    out_channels: 64
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    # Output shape: (N, 64, 28, 28)
+    # Params: (64 * 3*3 + 1) * 64 = 36,928
+
+  - type: relu
+  
+  - type: maxpool
+    kernel_size: 2
+    stride: 2
+    # Output shape: (N, 64, 14, 14) - Halves the spatial dimensions.
+
+  # --- Block 2 ---
+  # Further increases channel depth to learn more complex features.
+  - type: conv
+    in_channels: 64
+    out_channels: 128
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    # Output shape: (N, 128, 14, 14)
+    # Params: (64 * 3*3 + 1) * 128 = 73,856
+
+  - type: relu
+
+  - type: conv
+    in_channels: 128
+    out_channels: 128
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    # Output shape: (N, 128, 14, 14)
+    # Params: (128 * 3*3 + 1) * 128 = 147,584
+  
+  - type: relu
+
+  - type: maxpool
+    kernel_size: 2
+    stride: 2
+    # Output shape: (N, 128, 7, 7) - Halves the spatial dimensions again.
+
+  # --- Classifier Head ---
+  # Flattens the 3D feature map into a 1D vector and classifies it.
+  - type: flatten
+    # Transforms the tensor from (N, 128, 7, 7) to (N, 128 * 7 * 7).
+    # Output shape: (N, 6272)
+
+  - type: linear
+    # This is the largest layer, contributing the most to the parameter count.
+    in_features: 6272 # Calculated as 128 (channels) * 7 (height) * 7 (width)
+    out_features: 128
+    # Params: (6272 + 1) * 128 = 802,944
+
+  - type: relu
+
+  - type: linear
+    # The final output layer for classification.
+    in_features: 128
+    out_features: 10  # Assumes 10 output classes (e.g., for MNIST or CIFAR-10).
+    # Params: (128 + 1) * 10 = 1,290
+
+# --- Total Parameter Estimation ---
+# Block 1 Conv: 640 + 36,928 = 37,568
+# Block 2 Conv: 73,856 + 147,584 = 221,440
+# FC Layers: 802,944 + 1,290 = 804,234
+# Grand Total: 37,568 + 221,440 + 804,234 = 1,063,242 parameters (approx. 1.06M)
